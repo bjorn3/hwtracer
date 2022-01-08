@@ -59,7 +59,6 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <stdatomic.h>
-#include <intel-pt.h>
 
 #include "perf_pt_private.h"
 

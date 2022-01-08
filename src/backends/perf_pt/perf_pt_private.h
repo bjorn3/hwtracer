@@ -54,6 +54,10 @@ enum perf_pt_cerror_kind {
     perf_pt_cerror_ipt,
 };
 
+enum ipt_error_kind {
+    pte_overflow,
+};
+
 struct perf_pt_cerror {
     enum perf_pt_cerror_kind kind; // What sort of error is this?
     int code;                      // The error code itself.

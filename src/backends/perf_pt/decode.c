@@ -38,8 +38,7 @@
 #define _GNU_SOURCE
 
 #include <stdio.h>
-#include <intel-pt.h>
-#include <pt_cpu.h>
+#include <libxdc.h>
 #include <stdbool.h>
 #include <inttypes.h>
 #include <stdint.h>
