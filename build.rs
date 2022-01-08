@@ -44,8 +44,8 @@ fn make_c_deps_dir() -> PathBuf {
     c_deps_dir
 }
 
-fn build_libipt(c_deps_dir: &Path) {
-    eprintln!("Building libipt...");
+fn build_libxdc(c_deps_dir: &Path) {
+    eprintln!("Building libxdc...");
 
     let prev_dir = env::current_dir().unwrap();
     env::set_current_dir(&c_deps_dir).unwrap();
@@ -53,31 +53,9 @@ fn build_libipt(c_deps_dir: &Path) {
         .arg("-f")
         .arg(C_DEPS_MAKEFILE)
         .output()
-        .unwrap_or_else(|_| panic!("Fatal error when building libipt"));
+        .unwrap_or_else(|_| panic!("Fatal error when building libxdc"));
     if !res.status.success() {
-        eprintln!("libipt build failed\n>>> stdout");
-        eprintln!("stdout: {}", String::from_utf8_lossy(&res.stdout));
-        eprintln!("\n>>> stderr");
-        eprintln!("stderr: {}", String::from_utf8_lossy(&res.stderr));
-        panic!();
-    }
-
-    env::set_current_dir(&prev_dir).unwrap();
-}
-
-// We always fetch libipt regardless of if we will build our own libipt. This is becuase there are
-// a couple of private CPU configuration files that we need to borrow from libipt.
-fn fetch_libipt(c_deps_dir: &Path) {
-    eprintln!("Fetch libipt...");
-
-    let prev_dir = env::current_dir().unwrap();
-    env::set_current_dir(c_deps_dir).unwrap();
-    let res = Command::new("make")
-        .arg("libipt") // target just fetches the code.
-        .output()
-        .unwrap_or_else(|_| panic!("Fatal error when fetching libipt"));
-    if !res.status.success() {
-        eprintln!("libipt fetch failed\n>>> stdout");
+        eprintln!("libxdc build failed\n>>> stdout");
         eprintln!("stdout: {}", String::from_utf8_lossy(&res.stdout));
         eprintln!("\n>>> stderr");
         eprintln!("stderr: {}", String::from_utf8_lossy(&res.stderr));
@@ -107,44 +85,22 @@ fn main() {
         c_build.file("src/backends/perf_pt/decode.c");
         c_build.file("src/backends/perf_pt/util.c");
 
-        // Decide whether to build our own libipt.
-        if let Ok(val) = env::var("IPT_PATH") {
-            let mut inc_path = PathBuf::from(val.clone());
-            inc_path.push("include");
-            c_build.include(inc_path);
-            c_build.flag(&format!("-L{}/lib", val));
-            println!("cargo:rustc-link-search={}/lib", val);
-            println!("cargo:rustc-env=PTXED={}/bin/ptxed", val);
-        } else {
-            build_libipt(&c_deps_dir);
-            c_build.include(&format!("{}/inst/include/", c_deps_dir_s));
-            c_build.flag(&format!("-L{}/inst/lib", c_deps_dir_s));
-            println!("cargo:rustc-link-search={}/inst/lib", c_deps_dir_s);
-            println!("cargo:rustc-env=PTXED={}/inst/bin/ptxed", c_deps_dir_s);
-        }
-
-        // We borrow the CPU detection functions from libipt (they are not exposed publicly).
-        // If we built our own libipt above, then the fetch is a no-op.
-        fetch_libipt(&c_deps_dir);
-
-        c_build.include(&format!("{}/libipt/libipt/internal/include", c_deps_dir_s));
-        c_build.file(&format!("{}/libipt/libipt/src/pt_cpu.c", c_deps_dir_s));
-        c_build.file(&format!(
-            "{}/libipt/libipt/src/posix/pt_cpuid.c",
-            c_deps_dir_s
-        ));
+        build_libxdc(&c_deps_dir);
+        c_build.include(&format!("{}/inst/include/", c_deps_dir_s));
+        c_build.flag(&format!("-L{}/inst/lib", c_deps_dir_s));
+        println!("cargo:rustc-link-search={}/inst/lib", c_deps_dir_s);
 
         println!("cargo:rustc-cfg=perf_pt");
         if cpu_supports_pt() {
             println!("cargo:rustc-cfg=perf_pt_test");
         }
-        println!("cargo:rustc-link-lib=static=ipt");
+        println!("cargo:rustc-link-lib=static=xdc");
+        println!("cargo:rustc-link-lib=static=capstone");
     }
     c_build.include("src/util");
     c_build.compile("hwtracer_c");
 
     // Additional circumstances under which to re-run this build.rs.
-    println!("cargo:rerun-if-env-changed=IPT_PATH");
     rerun_except(&[
         "README.md",
         "deny.toml",
