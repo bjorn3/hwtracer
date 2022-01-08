@@ -3,72 +3,48 @@
 
 DIR != pwd
 INST_DIR = ${DIR}/inst
-PYTHON=python3
 
-PROCESSOR_TRACE_REPO = https://github.com/intel/libipt
-PROCESSOR_TRACE_V = ffe1631be3dad2dc286529e3e05d552043d626f0
-PROCESSOR_TRACE_SOURCE = libipt
+XDC_REPO = https://github.com/nyx-fuzz/libxdc
+XDC_V = 407d8ef2a5f9001b90bba0b9f5135cc71aa1f57b
+XDC_SOURCE = libxdc
 
-XED_REPO = https://github.com/intelxed/xed
-XED_V = f7191e268c3ee17fc8c9b8d9bd3eee7159f29556
-XED_SOURCE = xed
+CAPSTONE_REPO = https://github.com/capstone-engine/capstone
+CAPSTONE_V = 0efa3cc530ea188c0e03c945ab884ee19dd16342 # v4 branch
+CAPSTONE_SOURCE = capstone
 
-MBUILD_REPO = https://github.com/intelxed/mbuild
-MBUILD_V = 3e8eb33aada4153c21c4261b35e5f51f6e2019e8
-MBUILD_SOURCE = mbuild
-
-.PHONY: libipt
-
-all: ${INST_DIR}/bin/ptdump
-
-${INST_DIR}:
-	install -d ${INST_DIR}/bin
+all: ${INST_DIR}/lib/libxdc.a
 
 # Fetch targets
-.PHONY: ${PROCESSOR_TRACE_SOURCE}
-${PROCESSOR_TRACE_SOURCE}:
-	if ! [ -d ${PROCESSOR_TRACE_SOURCE} ]; then \
-		git clone ${PROCESSOR_TRACE_REPO}; \
+.PHONY: ${XDC_SOURCE}
+${XDC_SOURCE}:
+	if ! [ -d ${XDC_SOURCE} ]; then \
+		git clone ${XDC_REPO}; \
 	else \
-		cd ${PROCESSOR_TRACE_SOURCE} && git fetch; \
+		cd ${XDC_SOURCE} && git fetch; \
 	fi
-	cd ${PROCESSOR_TRACE_SOURCE} && git checkout ${PROCESSOR_TRACE_V}
+	cd ${XDC_SOURCE} && git checkout ${XDC_V}
 
-.PHONY: ${XED_SOURCE}
-${XED_SOURCE}:
-	if ! [ -d ${XED_SOURCE} ]; then \
-		git clone ${XED_REPO}; \
+.PHONY: ${CAPSTONE_SOURCE}
+${CAPSTONE_SOURCE}:
+	if ! [ -d ${CAPSTONE_SOURCE} ]; then \
+		git clone ${CAPSTONE_REPO}; \
 	else \
-		cd ${XED_SOURCE} && git fetch; \
+		cd ${CAPSTONE_SOURCE} && git fetch; \
 	fi
-	cd ${XED_SOURCE} && git checkout ${XED_V}
-
-.PHONY: ${MBUILD_SOURCE}
-${MBUILD_SOURCE}:
-	if ! [ -d ${MBUILD_SOURCE} ]; then \
-		git clone ${MBUILD_REPO}; \
-	else \
-		cd ${MBUILD_SOURCE} && git fetch; \
-	fi
-	cd ${MBUILD_SOURCE} && git checkout ${MBUILD_V}
+	cd ${CAPSTONE_SOURCE} && git checkout ${CAPSTONE_V}
 
 # Build targets
-${PROCESSOR_TRACE_SOURCE}/bin/ptdump: ${PROCESSOR_TRACE_SOURCE} ${XED_SOURCE}/obj/libxed.so
-	cd ${PROCESSOR_TRACE_SOURCE} && \
-		env CFLAGS"=-I${DIR}/${XED_SOURCE}/include/public/xed -I${DIR}/${XED_SOURCE}/obj -Wno-error -g" \
-		LDFLAGS="-L${DIR}/${XED_SOURCE}/obj -Wl,-rpath=${DIR}/${XED_SOURCE}/obj" \
-		cmake -DCMAKE_INSTALL_PREFIX:PATH=${INST_DIR} \
-		-DPTDUMP=ON -DPTXED=ON -DSIDEBAND=ON -DFEATURE_ELF=ON -DDEVBUILD=ON \
-		-DBUILD_SHARED_LIBS=OFF . && ${MAKE}
+${INST_DIR}/lib/libxdc.a: ${XDC_SOURCE} ${INST_DIR}/lib/libcapstone.a
+	cd ${XDC_SOURCE} && \
+		env CFLAGS"=-I${INST_DIR}/include/capstone -Wno-error" \
+		LDFLAGS="-L${INST_DIR}/lib" \
+		${MAKE} install PREFIX=${INST_DIR}
 
-${XED_SOURCE}/obj/libxed.so: ${XED_SOURCE} ${MBUILD_SOURCE}
-	cd ${XED_SOURCE} && ${PYTHON} mfile.py --shared
-
-# Install targets
-${INST_DIR}/bin/ptdump: ${INST_DIR} ${PROCESSOR_TRACE_SOURCE}/bin/ptdump
-	cd ${PROCESSOR_TRACE_SOURCE} && ${MAKE} install
-	install ${PROCESSOR_TRACE_SOURCE}/bin/ptdump ${INST_DIR}/bin/
-	install ${PROCESSOR_TRACE_SOURCE}/bin/ptxed ${INST_DIR}/bin/
+${INST_DIR}/lib/libcapstone.a: ${CAPSTONE_SOURCE}
+	mkdir ${CAPSTONE_SOURCE}/build || true
+	cd ${CAPSTONE_SOURCE}/build && \
+		cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${INST_DIR}" -DCAPSTONE_SHARED=OFF -DCAPSTONE_STATIC=ON -DCAPSTONE_ARCHITECTURE_DEFAULT=OFF -DCAPSTONE_X86_SUPPORT=ON .. && \
+		${MAKE} && ${MAKE} install
 
 clean:
-	rm -rf ${INST_DIR} ${PROCESSOR_TRACE_SOURCE} ${XED_SOURCE} ${MBUILD_SOURCE}
+	rm -rf ${INST_DIR} ${XDC_SOURCE} ${CAPSTONE_SOURCE}
